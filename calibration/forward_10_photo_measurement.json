@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-24",
+  "command": {"axis": "straight", "direction": "forward", "cm": 10, "speed_cm_s": 12},
+  "method": "Manual correspondence of six printed 1–6 cube centers to the PDF map; homography used to measure the same robot landmarks before and after.",
+  "before_photo": "F:/WeCHAT/xwechat_files/wxid_xzx803oc3t6c22_42b7/temp/RWTemp/2026-09/9e20f478899dc29eb19741386f9343c8/ab06843cc5cd48a30c1bafa525f04a71.jpg",
+  "after_photo": "F:/WeCHAT/xwechat_files/wxid_xzx803oc3t6c22_42b7/temp/RWTemp/2026-09/9e20f478899dc29eb19741386f9343c8/c50f22ebb8830fafb6869635ca0980a3.jpg",
+  "return_photo": "F:/WeCHAT/xwechat_files/wxid_xzx803oc3t6c22_42b7/temp/RWTemp/2026-09/9e20f478899dc29eb19741386f9343c8/4f5e4689da28e112e48a35cb822b9c08.jpg",
+  "reference_anchors_px": [[172, 756], [263, 756], [355, 756], [355, 655], [355, 556], [355, 453]],
+  "before_photo_anchors_px": [[453, 1200], [700, 1200], [955, 1200], [938, 923], [928, 661], [918, 404]],
+  "after_photo_anchors_px": [[323, 1245], [568, 1245], [815, 1245], [790, 981], [779, 757], [769, 550]],
+  "return_photo_anchors_px": [[348, 1240], [605, 1240], [861, 1238], [840, 958], [827, 693], [815, 438]],
+  "landmarks": {
+    "top_ring": {"before_photo_px": [605, 620], "after_photo_px": [490, 800], "before_field_cm": [57.0, 107.0], "after_field_cm": [55.9, 95.9], "forward_cm": 11.1},
+    "claw_tip": {"before_photo_px": [620, 917], "after_photo_px": [500, 1072], "before_field_cm": [57.9, 78.6], "after_field_cm": [57.8, 68.4], "forward_cm": 10.2}
+  },
+  "return_command": {"axis": "straight", "direction": "backward", "cm": 10, "speed_cm_s": 12},
+  "return_landmarks": {
+    "top_ring": {"photo_px": [499, 646], "field_cm": [56.5, 106.4], "backward_cm": 10.5},
+    "claw_tip": {"photo_px": [514, 946], "field_cm": [57.3, 78.6], "backward_cm": 10.2}
+  },
+  "status": "photo_estimate_only; motion_calibrated remains false"
+}

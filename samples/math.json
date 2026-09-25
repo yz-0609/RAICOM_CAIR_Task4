@@ -1,0 +1,10 @@
+{
+  "scene": "math",
+  "actions": [
+    {"type": "polygon", "sides": 4, "side_cm": 30, "direction": "clockwise", "travel": "forward"},
+    {"type": "strafe", "direction": "right", "cm": 30},
+    {"type": "polygon", "sides": 5, "side_cm": 30, "direction": "counterclockwise", "travel": "forward"},
+    {"type": "arm_wave"},
+    {"type": "spin", "direction": "right"}
+  ]
+}

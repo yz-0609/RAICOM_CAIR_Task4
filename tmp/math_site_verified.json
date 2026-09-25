@@ -1,0 +1,194 @@
+{
+  "robot_ip": "172.20.10.3",
+  "camera_resolution": [
+    640,
+    480
+  ],
+  "movement_speed_cm_s": 12,
+  "turn_speed_deg_s": 20,
+  "turn_tolerance_deg": 15,
+  "motion_timeout_extra_s": 3,
+  "motion_error_margin_cm": 3,
+  "max_single_move_cm": 50,
+  "max_total_path_cm": 800,
+  "motion_calibrated": false,
+  "recon_turn_calibrated": true,
+  "field_cm": [
+    150,
+    240
+  ],
+  "robot_clearance_cm": 15,
+  "recon_rotation_clearance_cm": 30,
+  "math_rotation_clearance_cm": 30,
+  "recon_scan_speed_deg_s": 7,
+  "recon_scan_timeout_extra_s": 30,
+  "recon_announce_immediately": false,
+  "recon_scan_headings_deg": [
+    0,
+    90,
+    180,
+    270,
+    315,
+    360
+  ],
+  "start_pose": {
+    "calibrated": false,
+    "x_cm": 75,
+    "y_cm": 80,
+    "heading_deg": 0
+  },
+  "recon_start_pose": {
+    "calibrated": false,
+    "x_cm": 53.4,
+    "y_cm": 110.3,
+    "heading_deg": 180,
+    "source": "2026-09-24 overhead photo; robot is 60 degrees from start after interrupted scan"
+  },
+  "warehouse": {
+    "pickup_start": {
+      "calibrated": false,
+      "notes": "Record permitted start pose in pickup area"
+    },
+    "positions": {
+      "1": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          42.5,
+          53.3
+        ],
+        "approach_cm": [
+          42.5,
+          68.3
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 180,
+        "tag_id": null
+      },
+      "2": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          64.2,
+          53.3
+        ],
+        "approach_cm": [
+          64.2,
+          68.3
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 180,
+        "tag_id": null
+      },
+      "3": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          87.1,
+          53.3
+        ],
+        "approach_cm": [
+          87.1,
+          68.3
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 180,
+        "tag_id": null
+      },
+      "4": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          86.3,
+          77.7
+        ],
+        "approach_cm": [
+          71.3,
+          77.7
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 90,
+        "tag_id": null
+      },
+      "5": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          86.4,
+          102.6
+        ],
+        "approach_cm": [
+          71.4,
+          102.6
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 90,
+        "tag_id": null
+      },
+      "6": {
+        "calibrated": false,
+        "source": "photo_estimate",
+        "block_center_cm": [
+          87.2,
+          127.5
+        ],
+        "approach_cm": [
+          72.2,
+          127.5
+        ],
+        "waypoints_cm": [],
+        "heading_deg": 90,
+        "tag_id": null
+      }
+    },
+    "line_return": {
+      "calibrated": false,
+      "segment_cm": [
+        [
+          5.1,
+          140.6
+        ],
+        [
+          68.8,
+          140.1
+        ]
+      ],
+      "tag_id": null,
+      "line_confidence": 0.65
+    },
+    "place_arm_pose": {
+      "calibrated": false,
+      "angles": {
+        "51": 90,
+        "52": 44,
+        "53": 144
+      }
+    }
+  },
+  "grasp": {
+    "distance_cm": 9.3,
+    "tolerance_cm": 1.0,
+    "center_tolerance_px": 22,
+    "stable_frames": 5,
+    "search_timeout_s": 18,
+    "approach_timeout_s": 20,
+    "grab_arm_pose": {
+      "51": 92,
+      "52": 148,
+      "53": 165
+    },
+    "carry_arm_pose": {
+      "51": 90,
+      "52": 44,
+      "53": 144
+    }
+  },
+  "math_supervised_trial": true,
+  "math_trial_pose": {
+    "calibrated": true,
+    "x_cm": 50,
+    "y_cm": 100,
+    "heading_deg": 0,
+    "source": "2026-09-25 operator confirmed full five-action physical run from this start pose; valid only when robot is reset to this placement"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "scene": "warehouse",
+  "actions": [
+    {"type": "pickup", "color": "red"},
+    {"type": "place", "position": 3},
+    {"type": "move", "direction": "backward", "cm": 10},
+    {"type": "turn", "direction": "left", "degrees": 90},
+    {"type": "return_line"}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "scene": "recon",
+  "actions": [
+    {"type": "recognize", "kind": "word"},
+    {"type": "recognize", "kind": "gesture"},
+    {"type": "recognize", "kind": "traffic"},
+    {"type": "recognize", "kind": "tag"},
+    {"type": "recognize", "kind": "color"}
+  ]
+}

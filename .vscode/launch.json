@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "任务四：离线解析检查",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/task4.py",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "args": ["--text", "${input:voiceText}", "--dry-run"]
+    },
+    {
+      "name": "任务四：正式语音运行",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/task4.py",
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "args": []
+    }
+  ],
+  "inputs": [{"id": "voiceText", "type": "promptString", "description": "要检查的任务四语音文字"}]
+}

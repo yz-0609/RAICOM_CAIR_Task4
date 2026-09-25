@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+logs/
+.env
+*.pyo
+.pytest_cache/
+NEXT_SESSION.md
+tmp/*
+!tmp/warehouse_trial.json
+!tmp/recon_site_verified.json
+!tmp/math_site_verified.json
+!tmp/math_trial_50_plan.json

@@ -1,0 +1,10 @@
+{
+  "scene": "companion",
+  "actions": [
+    {"type": "conversation", "prompt": "第一次现场对话"},
+    {"type": "conversation", "prompt": "第二次现场对话"},
+    {"type": "emotion", "name": "Smile"},
+    {"type": "sound", "name": "elephant"},
+    {"type": "light", "color": "green"}
+  ]
+}

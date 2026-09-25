@@ -1,0 +1,10 @@
+{
+  "scene": "companion",
+  "actions": [
+    {"type": "sound", "name": "ambulance"},
+    {"type": "conversation", "prompt": "询问摔倒的人是否需要帮助"},
+    {"type": "screen_text", "source": "last_reply"},
+    {"type": "light", "color": "blue"},
+    {"type": "emotion", "name": "Smile"}
+  ]
+}
