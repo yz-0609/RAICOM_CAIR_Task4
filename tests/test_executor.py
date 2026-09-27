@@ -365,6 +365,23 @@ class ExecutorTests(unittest.TestCase):
                          [["tag"]])
         self.assertEqual(len([call for call in self.robot.calls if call[0] == "tts"]), 4)
 
+    def test_immediate_recon_announces_gesture_seen_twice(self):
+        self.config["recon_start_pose"]["calibrated"] = True
+        self.config["recon_announce_immediately"] = True
+        gestures = iter(["剪刀", "剪刀", "no_gesture_rec"])
+        self.robot.get_gesture_result = lambda: next(gestures, "no_gesture_rec")
+        events = []
+        plan = validate_plan({"scene": "recon", "actions": [
+            {"type": "recognize", "kind": kind}
+            for kind in ("word", "tag", "traffic", "color", "gesture")]})
+        with patch.object(self.executor, "_cube_color_from_yolo", return_value="红色"):
+            self.executor.run(plan, lambda event, **details: events.append((event, details)))
+        gesture_announcements = [details["text"] for event, details in events
+                                 if event == "announcement_complete" and details["kind"] == "gesture"]
+        self.assertEqual(gesture_announcements, ["手势，剪刀。"])
+        self.assertEqual(self.executor._recon_results["gesture"], "剪刀")
+        self.assertEqual(len([event for event, _ in events if event == "recon_scan_complete"]), 1)
+
     def test_immediate_recon_skips_words_longer_than_five_characters(self):
         self.config["recon_start_pose"]["calibrated"] = True
         self.config["recon_announce_immediately"] = True
@@ -438,7 +455,12 @@ class ExecutorTests(unittest.TestCase):
         self.assertEqual(convert("traffic", [["zebra crossing", 260, 141, 243, 161, 39000]]), "")
         self.assertEqual(convert("traffic", [["绿灯", 260, 141, 243, 161, 39000]]), "绿灯")
         self.assertEqual(convert("tag", [[4, 100, 100]]), "4")
+        self.assertEqual(convert("tag", [[5, 100, 100]]), "5")
+        self.assertEqual(convert("tag", [[0, 100, 100]]), "0")
+        self.assertEqual(convert("tag", [[6, 100, 100]]), "")
         self.assertEqual(convert("tag", [[7, 100, 100]]), "")
+        self.assertEqual(convert("tag", [["unknown", 100, 100]]), "")
+        self.assertEqual(RobotExecutor._recognition_utterance("tag", "5"), "标签，五号。")
 
     def test_arm_wave_commands_more_than_three_seconds_of_motion(self):
         with patch.object(self.executor, "_arm_pose"):

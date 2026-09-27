@@ -674,7 +674,7 @@ class RobotExecutor:
                         candidates[kind] = value
                     if kind == "tag" and value and kind not in self._recon_results:
                         # A decoded AprilTag ID has error correction; a single
-                        # valid 0/4 sighting may be all a moving camera gets.
+                        # decoded ID sighting may be all a moving camera gets.
                         self._recon_results[kind] = value
                         self.record("recognition", kind=kind, value=value, scan_pass=scan_pass)
                         continue
@@ -861,7 +861,10 @@ class RobotExecutor:
                             continue
                         streaks[key] = streaks.get(key, 0) + 1 if last_seen.get(key) == scan_pass - 1 else 1
                         last_seen[key] = scan_pass
-                        if kind == "tag" or streaks[key] >= 3:
+                        # Gestures can leave the camera view during a slow turn
+                        # before a third identical frame arrives.
+                        required_sightings = 1 if kind == "tag" else 2 if kind == "gesture" else 3
+                        if streaks[key] >= required_sightings:
                             confirmed.append(value)
                     if kind == "color":
                         now = time.monotonic()
@@ -983,7 +986,9 @@ class RobotExecutor:
         if kind == "word" and len(value) > 5:
             return ""
         if kind == "tag":
-            return value if value in {"0", "4"} else ""
+            # Recon props use IDs 0..5. Warehouse tracking still selects
+            # Tag 0 in its separate adapter.
+            return value if value in {"0", "1", "2", "3", "4", "5"} else ""
         names = {
             "gesture": {"rock": "石头", "scissors": "剪刀", "paper": "布", "ok": "OK", "thumbs up": "点赞"},
             "traffic": {"green light": "绿灯", "red light": "红灯", "yellow light": "黄灯",
@@ -1006,7 +1011,11 @@ class RobotExecutor:
 
     @classmethod
     def _recognition_utterance(cls, kind: str, value: str) -> str:
-        spoken = {"0": "零号", "4": "四号"}.get(value, value) if kind == "tag" else value
+        if kind == "tag":
+            digits = "零一二三四五六七八九"
+            spoken = (digits[int(value)] if len(value) == 1 and value.isdigit() else value) + "号"
+        else:
+            spoken = value
         return f"{cls._kind_chinese(kind)}，{spoken}。"
 
     def polygon(self, sides: int, side_cm: float, direction: str, travel: str) -> None:

@@ -1,6 +1,7 @@
 [network]
 # 机器人 IP（手机热点网段 172.20.10.x；换网络只需改这一处）
 robot_ip = "172.20.10.3"
+#robot_ip = "10.19.5.82"
 
 [logging]
 # TRACE | DEBUG | INFO | SUCCESS | WARNING | ERROR | CRITICAL

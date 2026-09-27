@@ -197,11 +197,20 @@ RETURN_TURN_ANGLE = 180
 RETURN_TURN_SETTLE_SECONDS = 0.8
 
 # ── AprilTag 追踪 (goto_zone.py) ──
-APRILTAG_SEARCH_SPEED = 15  # 搜索旋转速度  15
-APRILTAG_KP, APRILTAG_KI, APRILTAG_KD = 0.12, 0, 0.10  # 追踪 PID   0.12, 0, 0.10
-APRILTAG_CHASE_SPEED = 20  # 追踪前进速度 cm/s
-APRILTAG_TURN_SPEED_MAX = 30  # 追踪转弯速度上限
+APRILTAG_SEARCH_SPEED = 12  # 搜索旋转速度；降低快速扫过标签的概率    8
+APRILTAG_KP, APRILTAG_KI, APRILTAG_KD = 0.12, 0, 0.0  # 像素误差微分会放大现场识别抖动
+APRILTAG_CHASE_SPEED = 12  # 追踪前进速度 cm/s
+APRILTAG_TURN_SPEED_MAX = 18  # 追踪转弯速度上限
 APRILTAG_LOCK_LOST_GRACE_SECONDS = 0.60  # 锁定后短暂丢帧不立即恢复自旋
+APRILTAG_MAX_TAG_AGE_SECONDS = 0.50  # 推理 RPC 卡顿时，不能继续使用旧标签
+APRILTAG_VISION_POLL_SECONDS = 0.10
+APRILTAG_OFFSET_FILTER_ALPHA = 0.35
+APRILTAG_CENTER_DEADBAND_PX = 15
+APRILTAG_ARRIVAL_CENTER_PX = 75
+APRILTAG_ARRIVAL_STABLE_FRAMES = 2
+APRILTAG_FORWARD_GATE_PX = 100  # 标签太偏时先转向，不继续前进
+APRILTAG_SLOW_OFFSET_PX = 60
+APRILTAG_TOTAL_TIMEOUT_SECONDS = 90.0
 APRILTAG_TARGET_DISTANCE = 9.3  # 追踪目标距离 cm
 APRILTAG_STOP_DISTANCE = 9.5  # 追踪停止距离 cm
 APRILTAG_SLOW_DISTANCE = 15  # 追踪减速距离 cm
@@ -3105,6 +3114,51 @@ def _apriltag_control_mode(tag, last_seen_at, now):
     return "search"
 
 
+def _apriltag_forward_speed(distance, offset_px):
+    """标签靠近画面边缘时先居中，避免前进使标签直接离开视野。"""
+    if distance <= 0 or distance < APRILTAG_STOP_DISTANCE:
+        return 0
+    if abs(offset_px) > APRILTAG_FORWARD_GATE_PX:
+        return 0
+    if distance < APRILTAG_SLOW_DISTANCE:
+        speed = int(np.clip((distance - APRILTAG_STOP_DISTANCE) * 3, 5, APRILTAG_CHASE_SPEED))
+    else:
+        speed = APRILTAG_CHASE_SPEED
+    if abs(offset_px) > APRILTAG_SLOW_OFFSET_PX:
+        return min(speed, 5)
+    return speed
+
+
+def _apriltag_arrival_observation(distance, offset_px):
+    return 0 < distance < APRILTAG_STOP_DISTANCE and abs(offset_px) <= APRILTAG_ARRIVAL_CENTER_PX
+
+
+def _apriltag_search_direction(last_seen_offset):
+    return -1 if last_seen_offset is not None and last_seen_offset > 0 else 1
+
+
+class AprilTagArrivalLatch:
+    """只按不同识别帧累计到达证据；丢帧后重新计数。"""
+
+    def __init__(self):
+        self.stable_frames = 0
+        self.last_tag_at = None
+
+    def reset(self):
+        self.stable_frames = 0
+        self.last_tag_at = None
+
+    def update(self, tag_at, distance, offset_px):
+        if tag_at != self.last_tag_at:
+            self.stable_frames = (
+                self.stable_frames + 1
+                if _apriltag_arrival_observation(distance, offset_px)
+                else 0
+            )
+            self.last_tag_at = tag_at
+        return self.stable_frames >= APRILTAG_ARRIVAL_STABLE_FRAMES
+
+
 def _chase_apriltag(robot, target_id, target_dist, sensor_id):
     """追踪 AprilTag 到达目标距离
 
@@ -3112,10 +3166,11 @@ def _chase_apriltag(robot, target_id, target_dist, sensor_id):
     """
     _log.bind(tag_id=target_id, target_dist=target_dist).info("开始追踪 AprilTag")
 
-    state = {"tag": None, "last_seen_at": None}
+    state = {"tag": None, "tag_at": None, "last_seen_at": None}
     lock = threading.Lock()
     stop_event = threading.Event()
     reached = False
+    started_at = time.monotonic()
 
     pid = robot.create_pid_controller()
     pid.set_pid(APRILTAG_KP, APRILTAG_KI, APRILTAG_KD)
@@ -3125,25 +3180,52 @@ def _chase_apriltag(robot, target_id, target_dist, sensor_id):
 
     def control_loop():
         nonlocal reached
+        filtered_offset = None
+        arrival = AprilTagArrivalLatch()
+        previous_mode = None
+        last_processed_tag_at = None
+        last_seen_offset = None
         while not stop_event.is_set():
+            now = time.monotonic()
+            if now - started_at > APRILTAG_TOTAL_TIMEOUT_SECONDS:
+                _log.warning("AprilTag 搜索与追踪超时，已停车")
+                robot.stop_chassis()
+                stop_event.set()
+                return
             with lock:
-                tag = state["tag"]
+                tag_at = state["tag_at"]
+                tag = (
+                    state["tag"]
+                    if tag_at is not None and now - tag_at <= APRILTAG_MAX_TAG_AGE_SECONDS
+                    else None
+                )
                 last_seen_at = state["last_seen_at"]
 
-            control_mode = _apriltag_control_mode(
-                tag, last_seen_at, time.monotonic()
-            )
+            control_mode = _apriltag_control_mode(tag, last_seen_at, now)
             if control_mode == "search":
-                robot.mecanum_move_xyz(0, 0, APRILTAG_SEARCH_SPEED)
-                _log.bind(state="searching").trace("搜索旋转")
+                arrival.reset()
+                filtered_offset = None
+                last_processed_tag_at = None
+                # 曾经看到标签时，沿着它最后出现的方向重新搜索。
+                # 固定只向左扫，会在标签位于右侧并短暂丢帧时越转越远。
+                search_direction = _apriltag_search_direction(last_seen_offset)
+                robot.mecanum_move_xyz(0, 0, APRILTAG_SEARCH_SPEED * search_direction)
+                if previous_mode != "search":
+                    _log.bind(state="searching", direction=search_direction).info(
+                        "搜索 Tag0：低速旋转"
+                    )
             elif control_mode == "hold":
-                # 底盘会持续执行上一条搜索旋转命令，因此必须
-                # 显式停车，避免 Tag 单帧丢失时左旋继续干扰追踪。
-                robot.stop_chassis()
-                _log.bind(state="lock_grace").trace(
-                    "Tag 短暂丢帧，保持停车等待重新锁定"
-                )
+                arrival.reset()
+                if previous_mode != "hold":
+                    robot.stop_chassis()
+                    _log.bind(state="lock_grace").info("Tag0 暂时丢失，停车等待重锁")
             else:
+                if previous_mode != "track":
+                    # 搜索指令可能仍在底盘执行；首次追踪前明确取消。
+                    robot.stop_chassis()
+                    _log.bind(state="track", tag_age_ms=round((now - tag_at) * 1000)).info(
+                        "已锁定 Tag0，停止搜索旋转"
+                    )
                 _id, cx, cy = tag[:3]
 
                 distance = robot.read_distance_data(sensor_id)
@@ -3157,50 +3239,65 @@ def _chase_apriltag(robot, target_id, target_dist, sensor_id):
                         _log.bind(sensor_id=sensor_id, value=distance).critical(
                             "距离传感器连续无数据"
                         )
+                        robot.stop_chassis()
                         stop_event.set()
                         return
 
+                # 测距也是网络 RPC；如果它堵塞，原本锁定的标签可能早已过期。
+                if time.monotonic() - tag_at > APRILTAG_MAX_TAG_AGE_SECONDS:
+                    robot.stop_chassis()
+                    arrival.reset()
+                    previous_mode = "hold"
+                    stop_event.wait(0.10)
+                    continue
+
                 offset_px = cx - (640 // 2)
-                dic = round(pid.update(offset_px))
-                z_speed = dic
-
-                if distance < APRILTAG_STOP_DISTANCE:
-                    y_speed = 0
-                elif distance < APRILTAG_SLOW_DISTANCE:
-                    y_speed = int(
-                        np.clip(
-                            (distance - APRILTAG_STOP_DISTANCE) * 3,
-                            5,
-                            APRILTAG_CHASE_SPEED,
+                last_seen_offset = offset_px
+                if tag_at != last_processed_tag_at:
+                    if filtered_offset is None:
+                        filtered_offset = offset_px
+                    else:
+                        filtered_offset += APRILTAG_OFFSET_FILTER_ALPHA * (
+                            offset_px - filtered_offset
                         )
-                    )
-                else:
-                    y_speed = APRILTAG_CHASE_SPEED
-
-                if abs(y_speed) < 1 and abs(z_speed) < 3:
+                    last_processed_tag_at = tag_at
+                if arrival.update(tag_at, distance, offset_px):
                     robot.stop_chassis()
                     _log.bind(
-                        state="idle", distance=distance, offset_px=offset_px
-                    ).trace("待命")
-                    if distance < APRILTAG_STOP_DISTANCE:
-                        reached = True
-                        break
+                        distance=distance,
+                        offset_px=round(offset_px, 1),
+                        stable_frames=arrival.stable_frames,
+                    ).success("Tag0 距离和居中连续确认，追踪完成")
+                    reached = True
+                    break
+
+                y_speed = _apriltag_forward_speed(distance, offset_px)
+                if abs(filtered_offset) <= APRILTAG_CENTER_DEADBAND_PX:
+                    z_speed = 0
                 else:
                     z_speed = int(
                         np.clip(
-                            z_speed, -APRILTAG_TURN_SPEED_MAX, APRILTAG_TURN_SPEED_MAX
+                            round(pid.update(filtered_offset)),
+                            -APRILTAG_TURN_SPEED_MAX,
+                            APRILTAG_TURN_SPEED_MAX,
                         )
                     )
+                if distance < APRILTAG_SLOW_DISTANCE:
+                    z_speed = int(np.clip(z_speed, -10, 10))
+                if y_speed == 0 and z_speed == 0:
+                    robot.stop_chassis()
+                else:
                     robot.mecanum_move_xyz(0, y_speed, z_speed)
-                    _log.bind(
-                        state="chase",
-                        distance=distance,
-                        offset_px=offset_px,
-                        y_speed=y_speed,
-                        z_speed=z_speed,
-                    ).trace("追踪")
+                _log.bind(
+                    state="chase", distance=distance,
+                    offset_px=round(offset_px, 1),
+                    filtered_offset_px=round(filtered_offset, 1),
+                    y_speed=y_speed, z_speed=z_speed,
+                    stable_frames=arrival.stable_frames,
+                ).trace("追踪")
 
-            stop_event.wait(0.05)
+            previous_mode = control_mode
+            stop_event.wait(0.10)
 
     def vision_loop():
         while not stop_event.is_set():
@@ -3208,14 +3305,19 @@ def _chase_apriltag(robot, target_id, target_dist, sensor_id):
                 tags = robot.get_apriltag_total_info()
             except Exception:
                 _log.opt(exception=True).warning("AprilTag 推理异常")
-                stop_event.wait(0.05)
+                with lock:
+                    state["tag"] = None
+                    state["tag_at"] = None
+                stop_event.wait(APRILTAG_VISION_POLL_SECONDS)
                 continue
 
             target = _get_target_tag(tags, target_id) if tags else None
             with lock:
                 state["tag"] = target
+                state["tag_at"] = time.monotonic() if target is not None else None
                 if target is not None:
-                    state["last_seen_at"] = time.monotonic()
+                    state["last_seen_at"] = state["tag_at"]
+            stop_event.wait(APRILTAG_VISION_POLL_SECONDS)
 
     ctrl_thread = threading.Thread(target=control_loop, daemon=True)
     vis_thread = threading.Thread(target=vision_loop, daemon=True)
@@ -3474,7 +3576,15 @@ def parse_args(argv=None):
         choices=("A", "B", "a", "b"),
         help="从指定存储区测试180度调头及返程，不执行抓取卸货",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--apriltag-test",
+        action="store_true",
+        help="从取货区当前位置只测试 Tag0 搜索与追踪，到达后停车",
+    )
+    args = parser.parse_args(argv)
+    if args.apriltag_test and (args.return_route_test or args.voice_test):
+        parser.error("--apriltag-test 不能与其他诊断模式同时使用")
+    return args
 
 
 def main(argv=None):
@@ -3503,6 +3613,23 @@ def main(argv=None):
             )
             completed = return_to_pickup_phase(robot, zone, lane_perception)
             _log.bind(zone=zone, completed=completed).success("返程诊断结束")
+            return
+
+        if args.apriltag_test:
+            sensor_id = _discover_infrared_id(robot)
+            _log.bind(sensor_id=sensor_id).warning(
+                "Tag0 诊断模式：从当前取货区位置开始真实移动，结束后不左转、不卸货"
+            )
+            robot.load_models(["apriltag_qrcode"])
+            try:
+                time.sleep(1)
+                reached = _chase_apriltag(
+                    robot, TARGET_TAG_ID, APRILTAG_TARGET_DISTANCE, sensor_id
+                )
+                _log.bind(reached=reached).success("Tag0 诊断结束")
+            finally:
+                robot.stop_chassis()
+                robot.release_models(["apriltag_qrcode"])
             return
 
         robot.play_audio_tts(
